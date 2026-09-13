@@ -34,13 +34,23 @@ async function requestApi(action, params = {}) {
     const query = new URLSearchParams({ action, ...params });
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+    let raceTimeoutId;
 
     try {
-        const response = await fetch(`${API_URL}?${query}`, { signal: controller.signal });
-        if (!response.ok) throw new Error(`API error: ${response.status}`);
-        return response.json();
+        const response = await Promise.race([
+            fetch(`${API_URL}?${query}`, { signal: controller.signal })
+                .then(response => {
+                    if (!response.ok) throw new Error(`API error: ${response.status}`);
+                    return response.json();
+                }),
+            new Promise((resolve, reject) => {
+                raceTimeoutId = setTimeout(() => reject(new Error(`API timeout: ${action}`)), API_TIMEOUT_MS);
+            })
+        ]);
+        return response;
     } finally {
         clearTimeout(timeoutId);
+        clearTimeout(raceTimeoutId);
     }
 }
 
@@ -61,6 +71,7 @@ window.onload = () => {
 async function fetchNextBatch() {
     if (isLoading) return;
     isLoading = true;
+    let loadedSuccessfully = false;
     if (allBooks.length > 0) document.getElementById('bottomLoader').classList.remove('hidden');
 
     try {
@@ -72,6 +83,7 @@ async function fetchNextBatch() {
         }));
         allBooks.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
         nextToken = response.nextToken;
+        loadedSuccessfully = true;
         render();
     } catch (error) {
         console.error('Gagal memuat daftar buku:', error);
@@ -80,7 +92,7 @@ async function fetchNextBatch() {
         isLoading = false;
         document.getElementById('loader').classList.add('hidden');
         document.getElementById('bottomLoader').classList.add('hidden');
-        if (nextToken && window.innerHeight + window.scrollY >= document.body.offsetHeight - 800) {
+        if (loadedSuccessfully && nextToken && window.innerHeight + window.scrollY >= document.body.offsetHeight - 800) {
             fetchNextBatch();
         }
     }
