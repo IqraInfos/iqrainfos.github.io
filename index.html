@@ -6,6 +6,8 @@
     <base target="_top">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.js"></script>
     <link rel="stylesheet" href="/assets/css/style.css">
 </head>
 <body class="bg-green-50/30 text-gray-800">
@@ -60,6 +62,31 @@
     
     <div id="bottomLoader" class="hidden flex justify-center py-12">
       <div class="w-10 h-10 border-4 border-green-200 border-t-custom rounded-full animate-spin"></div>
+    </div>
+  </div>
+
+  <div id="readerModal" class="reader-modal" aria-hidden="true">
+    <div class="reader-shell" role="dialog" aria-modal="true" aria-labelledby="readerTitle">
+      <div class="reader-header">
+        <h2 id="readerTitle" class="reader-title">Membuka buku...</h2>
+        <button type="button" class="reader-close" onclick="closeReader()" aria-label="Tutup pembaca">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div id="readerStatus" class="reader-status">Menyiapkan halaman...</div>
+      <div id="bookViewport" class="book-viewport" hidden>
+        <div id="bookPageFlip" class="book-page-flip"></div>
+      </div>
+      <div id="readerControls" class="reader-controls" hidden>
+        <button type="button" onclick="flipPrevious()" title="Halaman sebelumnya" aria-label="Halaman sebelumnya">
+          <i class="fa-solid fa-chevron-left"></i>
+        </button>
+        <span id="pageIndicator">1 / 1</span>
+        <button type="button" onclick="flipNext()" title="Halaman berikutnya" aria-label="Halaman berikutnya">
+          <i class="fa-solid fa-chevron-right"></i>
+        </button>
+        <a id="driveFallback" class="reader-drive-link" target="_blank" rel="noopener">Buka di Google Drive</a>
+      </div>
     </div>
   </div>
 
