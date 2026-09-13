@@ -5,6 +5,7 @@ let activeAlpha = 'ALL';
 let timeout = null;
 let isLoading = false;
 const API_URL = 'https://script.google.com/macros/s/AKfycbwjF3QXJUZ8KeVSAwd7fj3-iC4Ectb6As-9r2z633CATaz4EMEO4NG_ZDE5Y1Xwv9qNjg/exec';
+const PDF_PROXY_URL = 'https://nurul-ilmi-pdf-proxy.mail-iqrapetobo.workers.dev';
 let pageFlip = null;
 let readerBook = null;
 let readerZoom = 1;
@@ -143,6 +144,7 @@ async function openReader(fileId, fileName) {
     modal.classList.add('is-open');
     modal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('reader-open');
+    enterMobileFullscreen(modal);
 
     try {
         status.textContent = 'Mengambil PDF...';
@@ -197,17 +199,30 @@ async function openReader(fileId, fileName) {
 async function loadPdf(fileId) {
     if (pdfCache.has(fileId)) return pdfCache.get(fileId);
 
-    const cacheKey = `https://pdf-cache.local/${encodeURIComponent(fileId)}`;
-    if ('caches' in window) {
-        const cache = await caches.open('nurul-ilmi-pdf-v1');
-        const cachedResponse = await cache.match(cacheKey);
-        if (cachedResponse) {
-            const cachedBytes = new Uint8Array(await cachedResponse.arrayBuffer());
-            const cachedPdf = pdfjsLib.getDocument({ data: cachedBytes }).promise;
-            pdfCache.set(fileId, cachedPdf);
-            return cachedPdf;
+    if (PDF_PROXY_URL) {
+        const proxyUrl = `${PDF_PROXY_URL}?fileId=${encodeURIComponent(fileId)}`;
+        try {
+            const proxyPdf = pdfjsLib.getDocument({
+                url: proxyUrl,
+                rangeChunkSize: 1048576,
+                disableStream: false,
+                disableAutoFetch: false
+            }).promise;
+            pdfCache.set(fileId, proxyPdf);
+            return await proxyPdf;
+        } catch (error) {
+            pdfCache.delete(fileId);
+            console.warn('Proxy PDF gagal, mencoba fallback Apps Script:', error);
         }
     }
+
+    return loadPdfFromAppsScript(fileId);
+}
+
+async function loadPdfFromAppsScript(fileId) {
+    const cachedPdf = await loadPdfFromBrowserCache(fileId);
+    if (cachedPdf) return cachedPdf;
+    const cacheKey = `https://pdf-cache.local/${encodeURIComponent(fileId)}`;
 
     const pdfResponse = await requestApi('pdf', { fileId });
     if (pdfResponse.error || !pdfResponse.data) {
@@ -227,23 +242,45 @@ async function loadPdf(fileId) {
 
     const pdfPromise = pdfjsLib.getDocument({ data: binaryPdf }).promise;
     pdfCache.set(fileId, pdfPromise);
+    pdfPromise.catch(() => pdfCache.delete(fileId));
     return pdfPromise;
 }
 
-async function renderPdfPage(pdf, pageNumber, pageElement) {
-    if (pageElement.dataset.rendered === 'true') return;
+async function loadPdfFromBrowserCache(fileId) {
+    if (!('caches' in window)) return null;
 
-    const page = await pdf.getPage(pageNumber);
-    const baseViewport = page.getViewport({ scale: 1 });
-    const maxHeight = window.innerWidth < 640 ? 600 : 720;
-    const scale = Math.min(1.5, maxHeight / baseViewport.height);
-    const viewportSize = page.getViewport({ scale });
-    const canvas = pageElement.querySelector('canvas');
-    const context = canvas.getContext('2d', { alpha: false });
-    canvas.width = viewportSize.width;
-    canvas.height = viewportSize.height;
-    await page.render({ canvasContext: context, viewport: viewportSize }).promise;
-    pageElement.dataset.rendered = 'true';
+    const cacheKey = `https://pdf-cache.local/${encodeURIComponent(fileId)}`;
+    const cache = await caches.open('nurul-ilmi-pdf-v1');
+    const cachedResponse = await cache.match(cacheKey);
+    if (!cachedResponse) return null;
+
+    const cachedBytes = new Uint8Array(await cachedResponse.arrayBuffer());
+    const cachedPdf = pdfjsLib.getDocument({ data: cachedBytes }).promise;
+    pdfCache.set(fileId, cachedPdf);
+    return cachedPdf;
+}
+
+function renderPdfPage(pdf, pageNumber, pageElement) {
+    if (pageElement.dataset.rendered === 'true') return Promise.resolve();
+    if (pageElement.renderPromise) return pageElement.renderPromise;
+
+    pageElement.renderPromise = (async () => {
+        const page = await pdf.getPage(pageNumber);
+        const baseViewport = page.getViewport({ scale: 1 });
+        const maxHeight = window.innerWidth < 640 ? 600 : 720;
+        const scale = Math.min(1.5, maxHeight / baseViewport.height);
+        const viewportSize = page.getViewport({ scale });
+        const canvas = pageElement.querySelector('canvas');
+        const context = canvas.getContext('2d', { alpha: false });
+        canvas.width = viewportSize.width;
+        canvas.height = viewportSize.height;
+        await page.render({ canvasContext: context, viewport: viewportSize }).promise;
+        pageElement.dataset.rendered = 'true';
+    })().finally(() => {
+        pageElement.renderPromise = null;
+    });
+
+    return pageElement.renderPromise;
 }
 
 function preloadNearbyPages(pdf, pageElements, currentPageIndex, session) {
@@ -291,7 +328,13 @@ function closeReader() {
     document.body.classList.remove('reader-open');
     pageFlip?.destroy();
     pageFlip = null;
-    document.getElementById('bookPageFlip').replaceChildren();
+    document.getElementById('bookPageFlip')?.replaceChildren();
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+}
+
+function enterMobileFullscreen(modal) {
+    if (window.innerWidth > 640 || !modal.requestFullscreen) return;
+    modal.requestFullscreen().catch(() => {});
 }
 
 document.getElementById('readerModal').addEventListener('click', event => {
