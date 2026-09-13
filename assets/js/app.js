@@ -7,6 +7,7 @@ let isLoading = false;
 const bookCardCache = new Map();
 const API_URL = 'https://script.google.com/macros/s/AKfycbwjF3QXJUZ8KeVSAwd7fj3-iC4Ectb6As-9r2z633CATaz4EMEO4NG_ZDE5Y1Xwv9qNjg/exec';
 const PDF_PROXY_URL = 'https://nurul-ilmi-pdf-proxy.mail-iqrapetobo.workers.dev';
+const API_TIMEOUT_MS = 15000;
 let pageFlip = null;
 let readerBook = null;
 let readerZoom = 1;
@@ -31,9 +32,16 @@ function toggleFilter() {
 
 async function requestApi(action, params = {}) {
     const query = new URLSearchParams({ action, ...params });
-    const response = await fetch(`${API_URL}?${query}`);
-    if (!response.ok) throw new Error(`API error: ${response.status}`);
-    return response.json();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+
+    try {
+        const response = await fetch(`${API_URL}?${query}`, { signal: controller.signal });
+        if (!response.ok) throw new Error(`API error: ${response.status}`);
+        return response.json();
+    } finally {
+        clearTimeout(timeoutId);
+    }
 }
 
 window.onload = () => {
@@ -64,13 +72,17 @@ async function fetchNextBatch() {
         }));
         allBooks.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
         nextToken = response.nextToken;
+        render();
     } catch (error) {
         console.error('Gagal memuat daftar buku:', error);
+        render();
     } finally {
         isLoading = false;
         document.getElementById('loader').classList.add('hidden');
         document.getElementById('bottomLoader').classList.add('hidden');
-        render();
+        if (nextToken && window.innerHeight + window.scrollY >= document.body.offsetHeight - 800) {
+            fetchNextBatch();
+        }
     }
 }
 
