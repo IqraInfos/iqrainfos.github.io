@@ -4,6 +4,8 @@ let nextToken = null;
 let activeAlpha = 'ALL';
 let timeout = null;
 let isLoading = false;
+let lastLoadAttempt = 0;
+let loadError = null;
 const bookCardCache = new Map();
 const API_URL = 'https://script.google.com/macros/s/AKfycbwjF3QXJUZ8KeVSAwd7fj3-iC4Ectb6As-9r2z633CATaz4EMEO4NG_ZDE5Y1Xwv9qNjg/exec';
 const PDF_PROXY_URL = 'https://nurul-ilmi-pdf-proxy.mail-iqrapetobo.workers.dev';
@@ -69,10 +71,13 @@ window.onload = () => {
 };
 
 async function fetchNextBatch() {
-    if (isLoading) return;
+    if (isLoading || Date.now() - lastLoadAttempt < 2000) return;
     isLoading = true;
-    let loadedSuccessfully = false;
-    if (allBooks.length > 0) document.getElementById('bottomLoader').classList.remove('hidden');
+    lastLoadAttempt = Date.now();
+    loadError = null;
+    const bottomLoader = document.getElementById('bottomLoader');
+    bottomLoader.innerHTML = '<div class="w-10 h-10 border-4 border-green-200 border-t-custom rounded-full animate-spin"></div>';
+    if (allBooks.length > 0) bottomLoader.classList.remove('hidden');
 
     try {
         const params = nextToken ? { token: nextToken } : {};
@@ -83,18 +88,18 @@ async function fetchNextBatch() {
         }));
         allBooks.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
         nextToken = response.nextToken;
-        loadedSuccessfully = true;
         render();
     } catch (error) {
         console.error('Gagal memuat daftar buku:', error);
+        loadError = 'Gagal memuat buku berikutnya. Geser lagi untuk mencoba.';
+        const bottomLoader = document.getElementById('bottomLoader');
+        bottomLoader.innerHTML = `<span class="text-sm font-bold text-gray-400">${loadError}</span>`;
+        bottomLoader.classList.remove('hidden');
         render();
     } finally {
         isLoading = false;
         document.getElementById('loader').classList.add('hidden');
-        document.getElementById('bottomLoader').classList.add('hidden');
-        if (loadedSuccessfully && nextToken && window.innerHeight + window.scrollY >= document.body.offsetHeight - 800) {
-            fetchNextBatch();
-        }
+        if (!loadError) document.getElementById('bottomLoader').classList.add('hidden');
     }
 }
 
@@ -456,7 +461,7 @@ function trackClick(fileId, fileName) {
 
 window.onscroll = () => {
     if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 800) {
-    if (nextToken && !isLoading) {
+    if (nextToken && !isLoading && Date.now() - lastLoadAttempt >= 2000) {
         fetchNextBatch();
     }
     }
