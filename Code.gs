@@ -52,7 +52,7 @@ function getVisitorCount() {
 function getFilesFromDrive(token) {
   const folderId = "11-3uhsh4KkxiReh7cGUNCMUn0FkI0fHi"; 
   const fileList = [];
-  const limit = 100;
+  const limit = 32;
   
   try {
     let files;

@@ -8,6 +8,8 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbwjF3QXJUZ8KeVSAwd7fj3-
 let pageFlip = null;
 let readerBook = null;
 let readerZoom = 1;
+const pdfCache = new Map();
+let readerSession = 0;
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
@@ -30,20 +32,18 @@ async function requestApi(action, params = {}) {
     return response.json();
 }
 
-window.onload = async () => {
-    try {
-        const [visitor, counts] = await Promise.all([
-            requestApi('visitor'),
-            requestApi('counts')
-        ]);
-        document.getElementById('visitorCounter').innerText = parseInt(visitor.count, 10).toLocaleString('id-ID');
-        fileCounts = counts || {};
-        fetchNextBatch();
-    } catch (error) {
-        console.error('Gagal memuat data:', error);
-        document.getElementById('loader').classList.add('hidden');
-        document.getElementById('fileContainer').innerHTML = '<div class="col-span-full text-center py-10 text-red-400 font-bold">Data gagal dimuat. Silakan coba lagi.</div>';
-    }
+window.onload = () => {
+    fetchNextBatch();
+
+    Promise.all([requestApi('visitor'), requestApi('counts')])
+        .then(([visitor, counts]) => {
+            document.getElementById('visitorCounter').innerText = parseInt(visitor.count, 10).toLocaleString('id-ID');
+            fileCounts = counts || {};
+            render();
+        })
+        .catch(error => {
+            console.error('Gagal memuat statistik:', error);
+        });
 };
 
 async function fetchNextBatch() {
@@ -126,6 +126,7 @@ async function openReader(fileId, fileName) {
     const book = allBooks.find(item => item.id === fileId);
     if (!book) return;
 
+    const currentSession = ++readerSession;
     readerBook = book;
     resetReaderZoom();
     trackClick(fileId, fileName);
@@ -144,31 +145,18 @@ async function openReader(fileId, fileName) {
     document.body.classList.add('reader-open');
 
     try {
-        const pdfResponse = await requestApi('pdf', { fileId: book.id });
-        if (pdfResponse.error || !pdfResponse.data) {
-            throw new Error(pdfResponse.error || 'Data PDF kosong.');
-        }
+        const pdf = await loadPdf(book.id);
+        if (currentSession !== readerSession) return;
 
-        const binaryPdf = Uint8Array.from(atob(pdfResponse.data), character => character.charCodeAt(0));
-        const pdf = await pdfjsLib.getDocument({ data: binaryPdf }).promise;
-        const pageElements = [];
-
-        for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
-            const page = await pdf.getPage(pageNumber);
-            const baseViewport = page.getViewport({ scale: 1 });
-            const scale = Math.min(1.8, 720 / baseViewport.height);
-            const viewportSize = page.getViewport({ scale });
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-            canvas.width = viewportSize.width;
-            canvas.height = viewportSize.height;
-            await page.render({ canvasContext: context, viewport: viewportSize }).promise;
-
+        const pageElements = Array.from({ length: pdf.numPages }, () => {
             const pageElement = document.createElement('div');
             pageElement.className = 'flip-page';
-            pageElement.appendChild(canvas);
-            pageElements.push(pageElement);
-        }
+            pageElement.appendChild(document.createElement('canvas'));
+            return pageElement;
+        });
+
+        await renderPdfPage(pdf, 1, pageElements[0]);
+        if (currentSession !== readerSession) return;
 
         const flipContainer = document.getElementById('bookPageFlip');
         flipContainer.replaceChildren(...pageElements);
@@ -191,12 +179,63 @@ async function openReader(fileId, fileName) {
         status.hidden = true;
         viewport.hidden = false;
         controls.hidden = false;
+
+        renderRemainingPages(pdf, pageElements, currentSession);
     } catch (error) {
         console.error('Gagal membuka PDF:', error);
         status.textContent = 'Buku tidak dapat ditampilkan. Pastikan file PDF dapat diakses publik, lalu coba lagi.';
         document.getElementById('driveFallback').classList.add('is-primary');
         controls.hidden = false;
     }
+}
+
+async function loadPdf(fileId) {
+    if (pdfCache.has(fileId)) return pdfCache.get(fileId);
+
+    const pdfResponse = await requestApi('pdf', { fileId });
+    if (pdfResponse.error || !pdfResponse.data) {
+        throw new Error(pdfResponse.error || 'Data PDF kosong.');
+    }
+
+    const encodedPdf = atob(pdfResponse.data);
+    const binaryPdf = new Uint8Array(encodedPdf.length);
+    for (let index = 0; index < encodedPdf.length; index++) {
+        binaryPdf[index] = encodedPdf.charCodeAt(index);
+    }
+
+    const pdfPromise = pdfjsLib.getDocument({ data: binaryPdf }).promise;
+    pdfCache.set(fileId, pdfPromise);
+    return pdfPromise;
+}
+
+async function renderPdfPage(pdf, pageNumber, pageElement) {
+    if (pageElement.dataset.rendered === 'true') return;
+
+    const page = await pdf.getPage(pageNumber);
+    const baseViewport = page.getViewport({ scale: 1 });
+    const maxHeight = window.innerWidth < 640 ? 600 : 720;
+    const scale = Math.min(1.5, maxHeight / baseViewport.height);
+    const viewportSize = page.getViewport({ scale });
+    const canvas = pageElement.querySelector('canvas');
+    const context = canvas.getContext('2d', { alpha: false });
+    canvas.width = viewportSize.width;
+    canvas.height = viewportSize.height;
+    await page.render({ canvasContext: context, viewport: viewportSize }).promise;
+    pageElement.dataset.rendered = 'true';
+}
+
+async function renderRemainingPages(pdf, pageElements, session) {
+    let nextPage = 2;
+    const workerCount = Math.min(4, pageElements.length - 1);
+
+    async function renderWorker() {
+        while (nextPage <= pageElements.length && session === readerSession) {
+            const pageNumber = nextPage++;
+            await renderPdfPage(pdf, pageNumber, pageElements[pageNumber - 1]);
+        }
+    }
+
+    await Promise.all(Array.from({ length: workerCount }, renderWorker));
 }
 
 function updatePageIndicator(pageIndex, totalPages) {
@@ -226,6 +265,7 @@ function resetReaderZoom() {
 }
 
 function closeReader() {
+    readerSession++;
     const modal = document.getElementById('readerModal');
     modal.classList.remove('is-open');
     modal.setAttribute('aria-hidden', 'true');
