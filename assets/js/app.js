@@ -145,6 +145,7 @@ async function openReader(fileId, fileName) {
     document.body.classList.add('reader-open');
 
     try {
+        status.textContent = 'Mengambil PDF...';
         const pdf = await loadPdf(book.id);
         if (currentSession !== readerSession) return;
 
@@ -155,6 +156,7 @@ async function openReader(fileId, fileName) {
             return pageElement;
         });
 
+        status.textContent = 'Merender halaman pertama...';
         await renderPdfPage(pdf, 1, pageElements[0]);
         if (currentSession !== readerSession) return;
 
@@ -174,13 +176,16 @@ async function openReader(fileId, fileName) {
             mobileScrollSupport: false
         });
         pageFlip.loadFromHTML(pageElements);
-        pageFlip.on('flip', event => updatePageIndicator(event.data, pdf.numPages));
+        pageFlip.on('flip', event => {
+            updatePageIndicator(event.data, pdf.numPages);
+            preloadNearbyPages(pdf, pageElements, event.data, currentSession);
+        });
         updatePageIndicator(0, pdf.numPages);
         status.hidden = true;
         viewport.hidden = false;
         controls.hidden = false;
 
-        renderRemainingPages(pdf, pageElements, currentSession);
+        preloadNearbyPages(pdf, pageElements, 0, currentSession);
     } catch (error) {
         console.error('Gagal membuka PDF:', error);
         status.textContent = 'Buku tidak dapat ditampilkan. Pastikan file PDF dapat diakses publik, lalu coba lagi.';
@@ -192,6 +197,18 @@ async function openReader(fileId, fileName) {
 async function loadPdf(fileId) {
     if (pdfCache.has(fileId)) return pdfCache.get(fileId);
 
+    const cacheKey = `https://pdf-cache.local/${encodeURIComponent(fileId)}`;
+    if ('caches' in window) {
+        const cache = await caches.open('nurul-ilmi-pdf-v1');
+        const cachedResponse = await cache.match(cacheKey);
+        if (cachedResponse) {
+            const cachedBytes = new Uint8Array(await cachedResponse.arrayBuffer());
+            const cachedPdf = pdfjsLib.getDocument({ data: cachedBytes }).promise;
+            pdfCache.set(fileId, cachedPdf);
+            return cachedPdf;
+        }
+    }
+
     const pdfResponse = await requestApi('pdf', { fileId });
     if (pdfResponse.error || !pdfResponse.data) {
         throw new Error(pdfResponse.error || 'Data PDF kosong.');
@@ -199,8 +216,13 @@ async function loadPdf(fileId) {
 
     const encodedPdf = atob(pdfResponse.data);
     const binaryPdf = new Uint8Array(encodedPdf.length);
-    for (let index = 0; index < encodedPdf.length; index++) {
-        binaryPdf[index] = encodedPdf.charCodeAt(index);
+    for (let index = 0; index < encodedPdf.length; index++) binaryPdf[index] = encodedPdf.charCodeAt(index);
+
+    if ('caches' in window) {
+        const cache = await caches.open('nurul-ilmi-pdf-v1');
+        await cache.put(cacheKey, new Response(binaryPdf, {
+            headers: { 'Content-Type': 'application/pdf' }
+        }));
     }
 
     const pdfPromise = pdfjsLib.getDocument({ data: binaryPdf }).promise;
@@ -224,18 +246,15 @@ async function renderPdfPage(pdf, pageNumber, pageElement) {
     pageElement.dataset.rendered = 'true';
 }
 
-async function renderRemainingPages(pdf, pageElements, session) {
-    let nextPage = 2;
-    const workerCount = Math.min(4, pageElements.length - 1);
+function preloadNearbyPages(pdf, pageElements, currentPageIndex, session) {
+    const pageNumbers = [currentPageIndex, currentPageIndex + 1, currentPageIndex + 2]
+        .filter(pageIndex => pageIndex >= 0 && pageIndex < pageElements.length)
+        .map(pageIndex => pageIndex + 1);
 
-    async function renderWorker() {
-        while (nextPage <= pageElements.length && session === readerSession) {
-            const pageNumber = nextPage++;
-            await renderPdfPage(pdf, pageNumber, pageElements[pageNumber - 1]);
-        }
-    }
-
-    await Promise.all(Array.from({ length: workerCount }, renderWorker));
+    Promise.all(pageNumbers.map(pageNumber => renderPdfPage(pdf, pageNumber, pageElements[pageNumber - 1])))
+        .catch(error => {
+            if (session === readerSession) console.error('Gagal memuat halaman:', error);
+        });
 }
 
 function updatePageIndicator(pageIndex, totalPages) {

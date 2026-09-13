@@ -53,6 +53,11 @@ function getFilesFromDrive(token) {
   const folderId = "11-3uhsh4KkxiReh7cGUNCMUn0FkI0fHi"; 
   const fileList = [];
   const limit = 32;
+  const cache = CacheService.getScriptCache();
+  const cacheKey = token ? 'files_' + token : 'files_first_page';
+
+  const cached = cache.get(cacheKey);
+  if (cached) return JSON.parse(cached);
   
   try {
     let files;
@@ -80,10 +85,12 @@ function getFilesFromDrive(token) {
       count++;
     }
     
-    return {
+    const result = {
       files: fileList,
       nextToken: files.hasNext() ? files.getContinuationToken() : null
     };
+    cache.put(cacheKey, JSON.stringify(result), 300);
+    return result;
   } catch (e) {
     return { files: [], nextToken: null };
   }
@@ -147,6 +154,10 @@ function logFileClick(fileId, fileName) {
 
 // 4. Ambil statistik semua buku untuk ditampilkan awal
 function getAllFileCounts() {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get('file_counts');
+  if (cached) return JSON.parse(cached);
+
   try {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     const sheet = ss.getSheetByName("IQRA_Stats");
@@ -160,6 +171,7 @@ function getAllFileCounts() {
         counts[data[i][0]] = parseInt(data[i][2] || 0, 10);
       }
     }
+    cache.put('file_counts', JSON.stringify(counts), 120);
     return counts;
   } catch (e) {
     return {};
