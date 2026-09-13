@@ -38,3 +38,29 @@
     background-color: #1ca170 !important;
     color: white !important;
 }
+
+.reader-modal { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; padding: 1rem; background: rgba(15, 23, 42, 0.78); opacity: 0; pointer-events: none; transition: opacity 0.25s ease; }
+.reader-modal.is-open { opacity: 1; pointer-events: auto; }
+.reader-shell { width: min(100%, 1080px); max-height: calc(100vh - 2rem); overflow: auto; border-radius: 1.25rem; background: #f8fafc; box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35); }
+.reader-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.25rem; background: white; border-bottom: 1px solid #e2e8f0; }
+.reader-title { min-width: 0; margin: 0; overflow: hidden; color: #166534; font-size: 1rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.reader-close, .reader-controls button { display: inline-flex; width: 2.5rem; height: 2.5rem; align-items: center; justify-content: center; border: 0; border-radius: 0.75rem; color: #166534; background: #dcfce7; cursor: pointer; transition: 0.2s; }
+.reader-close:hover, .reader-controls button:hover { color: white; background: #16a34a; }
+.reader-status { padding: 3rem 1rem; color: #166534; font-weight: 700; text-align: center; }
+.book-viewport { display: flex; min-height: min(72vh, 680px); align-items: center; justify-content: center; padding: 1.5rem; background: radial-gradient(circle at center, #dcfce7, #bbf7d0 42%, #86efac); }
+.book-page-flip { width: min(100%, 920px); height: min(72vh, 650px); }
+.flip-page { display: flex; align-items: center; justify-content: center; overflow: hidden; background: white; }
+.flip-page canvas { display: block; max-width: 100%; max-height: 100%; }
+.reader-controls { display: flex; align-items: center; justify-content: center; gap: 1rem; padding: 1rem; background: white; color: #166534; font-weight: 800; }
+.reader-drive-link { margin-left: 1rem; color: #15803d; font-size: 0.8rem; text-decoration: underline; }
+.reader-drive-link.is-primary { padding: 0.7rem 1rem; border-radius: 0.75rem; color: white; background: #16a34a; text-decoration: none; }
+body.reader-open { overflow: hidden; }
+
+@media (max-width: 640px) {
+    .reader-modal { padding: 0; }
+    .reader-shell { width: 100%; max-height: 100vh; border-radius: 0; }
+    .book-viewport { min-height: calc(100vh - 156px); padding: 0.5rem; }
+    .book-page-flip { height: calc(100vh - 180px); }
+    .reader-controls { gap: 0.75rem; }
+    .reader-drive-link { margin-left: 0.25rem; }
+}
