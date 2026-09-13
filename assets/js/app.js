@@ -189,6 +189,7 @@ async function openReader(fileId, fileName) {
 
         preloadNearbyPages(pdf, pageElements, 0, currentSession);
     } catch (error) {
+        if (currentSession !== readerSession) return;
         console.error('Gagal membuka PDF:', error);
         status.textContent = 'Buku tidak dapat ditampilkan. Pastikan file PDF dapat diakses publik, lalu coba lagi.';
         document.getElementById('driveFallback').classList.add('is-primary');
