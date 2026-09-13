@@ -292,11 +292,12 @@ function renderPdfPage(pdf, pageNumber, pageElement) {
     pageElement.renderPromise = (async () => {
         const page = await pdf.getPage(pageNumber);
         const baseViewport = page.getViewport({ scale: 1 });
-        const maxHeight = window.innerWidth < 640 ? 600 : 720;
-        const cssScale = Math.min(1.2, maxHeight / baseViewport.height);
-        const pixelRatio = Math.min(Math.max(window.devicePixelRatio || 1, 2.5), 3);
+        const maxHeight = window.innerWidth < 640 ? 760 : 900;
+        const cssScale = Math.min(1.5, maxHeight / baseViewport.height);
+        const pixelRatio = Math.min(Math.max(window.devicePixelRatio || 1, 3), 4);
         const viewportSize = page.getViewport({ scale: cssScale });
-        const renderViewport = page.getViewport({ scale: cssScale * pixelRatio });
+        const renderScale = Math.min(cssScale * pixelRatio, 4096 / Math.max(baseViewport.width, baseViewport.height));
+        const renderViewport = page.getViewport({ scale: renderScale });
         const canvas = pageElement.querySelector('canvas');
         const context = canvas.getContext('2d', { alpha: false });
         canvas.width = Math.ceil(renderViewport.width);
