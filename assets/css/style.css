@@ -73,9 +73,6 @@ body.reader-open { overflow: hidden; }
     .reader-drive-link.is-primary { display: block; width: 100%; margin: 0.25rem 0 0; text-align: center; }
 }
 
-.reader-modal:fullscreen { padding: 0; }
-.reader-modal:fullscreen .reader-shell { width: 100vw; height: 100dvh; max-height: none; border-radius: 0; }
-
 @media (max-width: 900px) {
     header {
         flex-direction: column !important;
