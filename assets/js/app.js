@@ -215,8 +215,9 @@ async function loadPdf(fileId) {
 
     if (PDF_PROXY_URL) {
         const proxyUrl = `${PDF_PROXY_URL}?fileId=${encodeURIComponent(fileId)}`;
+        let loadingTask = null;
         try {
-            const loadingTask = pdfjsLib.getDocument({
+            loadingTask = pdfjsLib.getDocument({
                 url: proxyUrl,
                 rangeChunkSize: 1048576,
                 disableStream: false,
@@ -228,7 +229,7 @@ async function loadPdf(fileId) {
             pdfCache.set(fileId, Promise.resolve(proxyPdf));
             return proxyPdf;
         } catch (error) {
-            activeLoadingTasks.delete(loadingTask);
+            if (loadingTask) activeLoadingTasks.delete(loadingTask);
             pdfCache.delete(fileId);
             console.warn('Proxy PDF gagal, mencoba fallback Apps Script:', error);
         }
@@ -261,7 +262,10 @@ async function loadPdfFromAppsScript(fileId) {
     const loadingTask = pdfjsLib.getDocument({ data: binaryPdf });
     activeLoadingTasks.add(loadingTask);
     const pdfPromise = loadingTask.promise;
-    pdfPromise.finally(() => activeLoadingTasks.delete(loadingTask));
+    pdfPromise.then(
+        () => activeLoadingTasks.delete(loadingTask),
+        () => activeLoadingTasks.delete(loadingTask)
+    );
     pdfCache.set(fileId, pdfPromise);
     pdfPromise.catch(() => pdfCache.delete(fileId));
     return pdfPromise;
