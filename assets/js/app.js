@@ -7,6 +7,7 @@ let isLoading = false;
 const API_URL = 'https://script.google.com/macros/s/AKfycbwjF3QXJUZ8KeVSAwd7fj3-iC4Ectb6As-9r2z633CATaz4EMEO4NG_ZDE5Y1Xwv9qNjg/exec';
 let pageFlip = null;
 let readerBook = null;
+let readerZoom = 1;
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
@@ -126,6 +127,7 @@ async function openReader(fileId, fileName) {
     if (!book) return;
 
     readerBook = book;
+    resetReaderZoom();
     trackClick(fileId, fileName);
     const modal = document.getElementById('readerModal');
     const viewport = document.getElementById('bookViewport');
@@ -207,6 +209,20 @@ function flipPrevious() {
 
 function flipNext() {
     pageFlip?.flipNext();
+}
+
+function zoomReader(change) {
+    readerZoom = Math.min(1.6, Math.max(0.8, readerZoom + change));
+    document.getElementById('bookPageFlip').style.setProperty('--reader-zoom', readerZoom.toFixed(1));
+    document.getElementById('zoomIndicator').textContent = `${Math.round(readerZoom * 100)}%`;
+}
+
+function resetReaderZoom() {
+    readerZoom = 1;
+    const pageFlipElement = document.getElementById('bookPageFlip');
+    if (pageFlipElement) pageFlipElement.style.setProperty('--reader-zoom', '1');
+    const zoomIndicator = document.getElementById('zoomIndicator');
+    if (zoomIndicator) zoomIndicator.textContent = '100%';
 }
 
 function closeReader() {

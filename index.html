@@ -85,6 +85,14 @@
         <button type="button" onclick="flipNext()" title="Halaman berikutnya" aria-label="Halaman berikutnya">
           <i class="fa-solid fa-chevron-right"></i>
         </button>
+        <span class="reader-control-divider" aria-hidden="true"></span>
+        <button type="button" onclick="zoomReader(-0.1)" title="Perkecil tampilan" aria-label="Perkecil tampilan">
+          <i class="fa-solid fa-minus"></i>
+        </button>
+        <button type="button" id="zoomIndicator" onclick="resetReaderZoom()" class="zoom-indicator" title="Atur ulang zoom">100%</button>
+        <button type="button" onclick="zoomReader(0.1)" title="Perbesar tampilan" aria-label="Perbesar tampilan">
+          <i class="fa-solid fa-plus"></i>
+        </button>
         <a id="driveFallback" class="reader-drive-link" target="_blank" rel="noopener">Buka di Google Drive</a>
       </div>
     </div>
