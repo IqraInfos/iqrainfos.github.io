@@ -143,7 +143,7 @@ function createBookCard(book) {
     template.innerHTML = `
         <div class="book-card p-5 flex flex-col h-full animate-fade-in shadow-sm bg-white border-b-4 border-green-500">
             <div class="h-56 bg-green-50/50 rounded-2xl mb-5 flex items-center justify-center overflow-hidden border border-green-50 relative">
-                <img src="${book.thumbnail}" loading="lazy" class="w-full h-full object-cover" onerror="this.src='https://via.placeholder.com/400x300?text=No+Cover'">
+                <img src="${PDF_PROXY_URL}?fileId=${encodeURIComponent(book.id)}&thumbnail=1" loading="lazy" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='/assets/img/placeholder-book.svg'">
                 <div class="absolute top-3 right-3 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-extrabold text-custom shadow-sm border border-green-100 flex items-center gap-1.5">
                     <i class="fa-solid fa-eye text-xs"></i>
                     <span id="count-${book.id}">${readCount}</span>x dibaca

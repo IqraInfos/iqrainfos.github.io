@@ -15,6 +15,7 @@ export default {
 
     const url = new URL(request.url);
     const fileId = url.searchParams.get('fileId') || '';
+    const isThumbnail = url.searchParams.get('thumbnail') === '1';
 
     if (!/^[a-zA-Z0-9_-]+$/.test(fileId)) {
       return new Response('Invalid file ID', {
@@ -23,10 +24,16 @@ export default {
       });
     }
 
-    const driveUrl = new URL('https://drive.usercontent.google.com/download');
+    const driveUrl = isThumbnail
+      ? new URL('https://drive.google.com/thumbnail')
+      : new URL('https://drive.usercontent.google.com/download');
     driveUrl.searchParams.set('id', fileId);
-    driveUrl.searchParams.set('export', 'download');
-    driveUrl.searchParams.set('confirm', 't');
+    if (isThumbnail) {
+      driveUrl.searchParams.set('sz', 'w400');
+    } else {
+      driveUrl.searchParams.set('export', 'download');
+      driveUrl.searchParams.set('confirm', 't');
+    }
 
     const upstreamHeaders = new Headers();
     const range = request.headers.get('Range');
@@ -43,10 +50,10 @@ export default {
     responseHeaders.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
     responseHeaders.set('Access-Control-Allow-Headers', 'Range');
     responseHeaders.set('Access-Control-Expose-Headers', 'Accept-Ranges, Content-Length, Content-Range, Content-Type');
-    responseHeaders.set('Cache-Control', 'public, max-age=3600');
-    responseHeaders.set('Accept-Ranges', 'bytes');
+    responseHeaders.set('Cache-Control', isThumbnail ? 'public, max-age=86400' : 'public, max-age=3600');
+    if (!isThumbnail) responseHeaders.set('Accept-Ranges', 'bytes');
 
-    if (!responseHeaders.get('Content-Type') || responseHeaders.get('Content-Type') === 'application/octet-stream') {
+    if (!isThumbnail && (!responseHeaders.get('Content-Type') || responseHeaders.get('Content-Type') === 'application/octet-stream')) {
       responseHeaders.set('Content-Type', 'application/pdf');
     }
 

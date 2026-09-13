@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" role="img" aria-label="Sampul buku tidak tersedia">
+  <rect width="400" height="300" fill="#dcfce7"/>
+  <path d="M120 72h160v156H120z" fill="#16a34a"/>
+  <path d="M140 92h120v116H140z" fill="#f0fdf4"/>
+  <path d="M160 122h80M160 146h80M160 170h56" stroke="#16a34a" stroke-width="8" stroke-linecap="round"/>
+</svg>
