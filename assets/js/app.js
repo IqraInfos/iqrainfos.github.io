@@ -64,7 +64,6 @@ async function fetchNextBatch() {
         }));
         allBooks.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
         nextToken = response.nextToken;
-        render();
     } catch (error) {
         console.error('Gagal memuat daftar buku:', error);
     } finally {
@@ -114,7 +113,7 @@ function render() {
     const search = document.getElementById('searchInput').value.trim().toLocaleLowerCase();
     let visibleCount = 0;
 
-    const fragment = document.createDocumentFragment();
+    const matchingCards = [];
     allBooks.forEach(book => {
         let card = bookCardCache.get(book.id);
         if (!card) {
@@ -127,17 +126,26 @@ function render() {
         if (matchesSearch && matchesAlpha) {
             card.hidden = false;
             visibleCount++;
-            fragment.appendChild(card);
+            matchingCards.push(card);
         }
     });
-
-    container.replaceChildren(fragment);
 
     if (visibleCount === 0 && (!isLoading || search)) {
         const emptyMessage = search && (isLoading || nextToken)
             ? 'Mencari di seluruh koleksi buku...'
             : 'Buku tidak ditemukan.';
-        container.innerHTML = `<div class="col-span-full text-center py-10 text-gray-400 font-bold">${emptyMessage}</div>`;
+        if (container.children.length !== 1 || container.firstElementChild.textContent !== emptyMessage) {
+            container.innerHTML = `<div class="col-span-full text-center py-10 text-gray-400 font-bold">${emptyMessage}</div>`;
+        }
+    } else {
+        matchingCards.forEach((card, index) => {
+            if (container.children[index] !== card) {
+                container.insertBefore(card, container.children[index] || null);
+            }
+        });
+        while (container.children.length > matchingCards.length) {
+            container.lastElementChild.remove();
+        }
     }
 
     if (search && nextToken && !isLoading) {
