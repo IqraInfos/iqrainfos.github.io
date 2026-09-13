@@ -130,8 +130,11 @@ function render() {
 
     container.replaceChildren(fragment);
 
-    if (visibleCount === 0 && !nextToken && !isLoading) {
-        container.innerHTML = `<div class="col-span-full text-center py-10 text-gray-400 font-bold">Buku tidak ditemukan.</div>`;
+    if (visibleCount === 0 && !isLoading) {
+        const emptyMessage = search
+            ? 'Buku tidak ditemukan pada daftar yang sudah dimuat.'
+            : 'Buku tidak ditemukan.';
+        container.innerHTML = `<div class="col-span-full text-center py-10 text-gray-400 font-bold">${emptyMessage}</div>`;
     }
 
     // Jangan mengambil batch berikutnya saat user sedang mencari; pencarian harus tetap responsif.
