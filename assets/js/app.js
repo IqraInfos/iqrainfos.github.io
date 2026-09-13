@@ -71,6 +71,7 @@ async function fetchNextBatch() {
         isLoading = false;
         document.getElementById('loader').classList.add('hidden');
         document.getElementById('bottomLoader').classList.add('hidden');
+        render();
     }
 }
 
@@ -123,22 +124,25 @@ function render() {
 
         const matchesSearch = book.searchName.includes(search);
         const matchesAlpha = activeAlpha === 'ALL' || book.name.toUpperCase().startsWith(activeAlpha);
-        card.hidden = !(matchesSearch && matchesAlpha);
-        if (!card.hidden) visibleCount++;
-        fragment.appendChild(card);
+        if (matchesSearch && matchesAlpha) {
+            card.hidden = false;
+            visibleCount++;
+            fragment.appendChild(card);
+        }
     });
 
     container.replaceChildren(fragment);
 
-    if (visibleCount === 0 && !isLoading) {
-        const emptyMessage = search
-            ? 'Buku tidak ditemukan pada daftar yang sudah dimuat.'
+    if (visibleCount === 0 && (!isLoading || search)) {
+        const emptyMessage = search && (isLoading || nextToken)
+            ? 'Mencari di seluruh koleksi buku...'
             : 'Buku tidak ditemukan.';
         container.innerHTML = `<div class="col-span-full text-center py-10 text-gray-400 font-bold">${emptyMessage}</div>`;
     }
 
-    // Jangan mengambil batch berikutnya saat user sedang mencari; pencarian harus tetap responsif.
-    if (!search && visibleCount < 8 && nextToken && !isLoading) {
+    if (search && nextToken && !isLoading) {
+        fetchNextBatch();
+    } else if (!search && visibleCount < 8 && nextToken && !isLoading) {
         fetchNextBatch();
     }
 }
