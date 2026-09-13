@@ -5,6 +5,10 @@ let activeAlpha = 'ALL';
 let timeout = null;
 let isLoading = false;
 const API_URL = 'https://script.google.com/macros/s/AKfycbwjF3QXJUZ8KeVSAwd7fj3-iC4Ectb6As-9r2z633CATaz4EMEO4NG_ZDE5Y1Xwv9qNjg/exec';
+let pageFlip = null;
+let readerBook = null;
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 const alphaContainer = document.getElementById('alphaContainer');
 "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").forEach(l => {
@@ -103,7 +107,7 @@ function render() {
             <h3 class="font-bold text-gray-800 text-base line-clamp-2 mb-5 flex-grow leading-snug">${b.name}</h3>
             <div class="flex items-center justify-between mt-auto">
             <span class="px-3 py-1 bg-gray-100 rounded-full text-[10px] text-gray-500 font-bold uppercase tracking-wider">${b.size}</span>
-            <a href="${b.url}" target="_blank" onclick="trackClick('${b.id}', '${cleanName}')" class="bg-custom hover:bg-[#15805a] text-white px-6 py-2.5 rounded-xl text-xs font-black transition-all shadow-md shadow-green-100">BACA</a>
+            <button type="button" onclick="openReader('${b.id}', '${cleanName}')" class="bg-custom hover:bg-[#15805a] text-white px-6 py-2.5 rounded-xl text-xs font-black transition-all shadow-md shadow-green-100">BACA</button>
             </div>
         </div>
         `;
@@ -116,6 +120,110 @@ function render() {
     fetchNextBatch();
     }
 }
+
+async function openReader(fileId, fileName) {
+    const book = allBooks.find(item => item.id === fileId);
+    if (!book) return;
+
+    readerBook = book;
+    trackClick(fileId, fileName);
+    const modal = document.getElementById('readerModal');
+    const viewport = document.getElementById('bookViewport');
+    const controls = document.getElementById('readerControls');
+    const status = document.getElementById('readerStatus');
+    document.getElementById('readerTitle').textContent = book.name;
+    document.getElementById('driveFallback').href = book.url;
+    viewport.hidden = true;
+    controls.hidden = true;
+    status.hidden = false;
+    status.textContent = 'Menyiapkan halaman...';
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('reader-open');
+
+    try {
+        const downloadUrl = `https://drive.google.com/uc?export=download&id=${encodeURIComponent(book.id)}`;
+        const pdf = await pdfjsLib.getDocument(downloadUrl).promise;
+        const pageElements = [];
+
+        for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+            const page = await pdf.getPage(pageNumber);
+            const baseViewport = page.getViewport({ scale: 1 });
+            const scale = Math.min(1.8, 720 / baseViewport.height);
+            const viewportSize = page.getViewport({ scale });
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = viewportSize.width;
+            canvas.height = viewportSize.height;
+            await page.render({ canvasContext: context, viewport: viewportSize }).promise;
+
+            const pageElement = document.createElement('div');
+            pageElement.className = 'flip-page';
+            pageElement.appendChild(canvas);
+            pageElements.push(pageElement);
+        }
+
+        const flipContainer = document.getElementById('bookPageFlip');
+        flipContainer.replaceChildren(...pageElements);
+        pageFlip?.destroy();
+        pageFlip = new St.PageFlip(flipContainer, {
+            width: 460,
+            height: 650,
+            size: 'stretch',
+            minWidth: 280,
+            maxWidth: 460,
+            minHeight: 396,
+            maxHeight: 650,
+            showCover: true,
+            maxShadowOpacity: 0.35,
+            mobileScrollSupport: false
+        });
+        pageFlip.loadFromHTML(pageElements);
+        pageFlip.on('flip', event => updatePageIndicator(event.data, pdf.numPages));
+        updatePageIndicator(0, pdf.numPages);
+        status.hidden = true;
+        viewport.hidden = false;
+        controls.hidden = false;
+    } catch (error) {
+        console.error('Gagal membuka PDF:', error);
+        status.textContent = 'Buku tidak dapat ditampilkan di sini. Silakan buka melalui Google Drive.';
+        document.getElementById('driveFallback').classList.add('is-primary');
+        controls.hidden = false;
+    }
+}
+
+function updatePageIndicator(pageIndex, totalPages) {
+    document.getElementById('pageIndicator').textContent = `${pageIndex + 1} / ${totalPages}`;
+}
+
+function flipPrevious() {
+    pageFlip?.flipPrev();
+}
+
+function flipNext() {
+    pageFlip?.flipNext();
+}
+
+function closeReader() {
+    const modal = document.getElementById('readerModal');
+    modal.classList.remove('is-open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('reader-open');
+    pageFlip?.destroy();
+    pageFlip = null;
+    document.getElementById('bookPageFlip').replaceChildren();
+}
+
+document.getElementById('readerModal').addEventListener('click', event => {
+    if (event.target.id === 'readerModal') closeReader();
+});
+
+document.addEventListener('keydown', event => {
+    if (!document.getElementById('readerModal').classList.contains('is-open')) return;
+    if (event.key === 'Escape') closeReader();
+    if (event.key === 'ArrowLeft') flipPrevious();
+    if (event.key === 'ArrowRight') flipNext();
+});
 
 function trackClick(fileId, fileName) {
     fileCounts[fileId] = (fileCounts[fileId] || 0) + 1;
