@@ -144,7 +144,6 @@ async function openReader(fileId, fileName) {
     modal.classList.add('is-open');
     modal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('reader-open');
-    enterMobileFullscreen(modal);
 
     try {
         status.textContent = 'Mengambil PDF...';
@@ -330,12 +329,6 @@ function closeReader() {
     pageFlip?.destroy();
     pageFlip = null;
     document.getElementById('bookPageFlip')?.replaceChildren();
-    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-}
-
-function enterMobileFullscreen(modal) {
-    if (window.innerWidth > 640 || !modal.requestFullscreen) return;
-    modal.requestFullscreen().catch(() => {});
 }
 
 document.getElementById('readerModal').addEventListener('click', event => {
