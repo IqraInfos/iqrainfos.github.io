@@ -4,6 +4,7 @@ let nextToken = null;
 let activeAlpha = 'ALL';
 let timeout = null;
 let isLoading = false;
+const bookCardCache = new Map();
 const API_URL = 'https://script.google.com/macros/s/AKfycbwjF3QXJUZ8KeVSAwd7fj3-iC4Ectb6As-9r2z633CATaz4EMEO4NG_ZDE5Y1Xwv9qNjg/exec';
 const PDF_PROXY_URL = 'https://nurul-ilmi-pdf-proxy.mail-iqrapetobo.workers.dev';
 let pageFlip = null;
@@ -57,7 +58,10 @@ async function fetchNextBatch() {
     try {
         const params = nextToken ? { token: nextToken } : {};
         const response = await requestApi('files', params);
-        allBooks = allBooks.concat(response.files || []);
+        allBooks = allBooks.concat(response.files || []).map(book => ({
+            ...book,
+            searchName: book.searchName || book.name.toLocaleLowerCase()
+        }));
         allBooks.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
         nextToken = response.nextToken;
         render();
@@ -80,48 +84,59 @@ function setFilter(l) {
     render();
 }
 
-function render() {
-    const container = document.getElementById('fileContainer');
-    const search = document.getElementById('searchInput').value.toLowerCase();
-    
-    const filtered = allBooks.filter(b => {
-    const matchesSearch = b.name.toLowerCase().includes(search);
-    const matchesAlpha = activeAlpha === 'ALL' || b.name.toUpperCase().startsWith(activeAlpha);
-    return matchesSearch && matchesAlpha;
-    });
+function createBookCard(book) {
+    const readCount = fileCounts[book.id] || 0;
+    const cleanName = book.name.replace(/'/g, "\\'");
+    const template = document.createElement('template');
 
-    if (filtered.length === 0 && !nextToken && !isLoading) {
-    container.innerHTML = `<div class="col-span-full text-center py-10 text-gray-400 font-bold">Buku tidak ditemukan.</div>`;
-    } else {
-    const html = filtered.map(b => {
-        const readCount = fileCounts[b.id] || 0;
-        const cleanName = b.name.replace(/'/g, "\\'");
-
-        return `
+    template.innerHTML = `
         <div class="book-card p-5 flex flex-col h-full animate-fade-in shadow-sm bg-white border-b-4 border-green-500">
             <div class="h-56 bg-green-50/50 rounded-2xl mb-5 flex items-center justify-center overflow-hidden border border-green-50 relative">
-                <img src="${b.thumbnail}" loading="lazy" class="w-full h-full object-cover" onerror="this.src='https://via.placeholder.com/400x300?text=No+Cover'">
-                
-                <!-- BADGE TOTAL DIBACA -->
+                <img src="${book.thumbnail}" loading="lazy" class="w-full h-full object-cover" onerror="this.src='https://via.placeholder.com/400x300?text=No+Cover'">
                 <div class="absolute top-3 right-3 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-extrabold text-custom shadow-sm border border-green-100 flex items-center gap-1.5">
-                <i class="fa-solid fa-eye text-xs"></i>
-                <span id="count-${b.id}">${readCount}</span>x dibaca
+                    <i class="fa-solid fa-eye text-xs"></i>
+                    <span id="count-${book.id}">${readCount}</span>x dibaca
                 </div>
             </div>
-            <h3 class="font-bold text-gray-800 text-base line-clamp-2 mb-5 flex-grow leading-snug">${b.name}</h3>
+            <h3 class="font-bold text-gray-800 text-base line-clamp-2 mb-5 flex-grow leading-snug">${book.name}</h3>
             <div class="flex items-center justify-between mt-auto">
-            <span class="px-3 py-1 bg-gray-100 rounded-full text-[10px] text-gray-500 font-bold uppercase tracking-wider">${b.size}</span>
-            <button type="button" onclick="openReader('${b.id}', '${cleanName}')" class="bg-custom hover:bg-[#15805a] text-white px-6 py-2.5 rounded-xl text-xs font-black transition-all shadow-md shadow-green-100">BACA</button>
+                <span class="px-3 py-1 bg-gray-100 rounded-full text-[10px] text-gray-500 font-bold uppercase tracking-wider">${book.size}</span>
+                <button type="button" onclick="openReader('${book.id}', '${cleanName}')" class="bg-custom hover:bg-[#15805a] text-white px-6 py-2.5 rounded-xl text-xs font-black transition-all shadow-md shadow-green-100">BACA</button>
             </div>
-        </div>
-        `;
-    }).join('');
+        </div>`;
 
-    container.innerHTML = html;
+    return template.content.firstElementChild;
+}
+
+function render() {
+    const container = document.getElementById('fileContainer');
+    const search = document.getElementById('searchInput').value.trim().toLocaleLowerCase();
+    let visibleCount = 0;
+
+    const fragment = document.createDocumentFragment();
+    allBooks.forEach(book => {
+        let card = bookCardCache.get(book.id);
+        if (!card) {
+            card = createBookCard(book);
+            bookCardCache.set(book.id, card);
+        }
+
+        const matchesSearch = book.searchName.includes(search);
+        const matchesAlpha = activeAlpha === 'ALL' || book.name.toUpperCase().startsWith(activeAlpha);
+        card.hidden = !(matchesSearch && matchesAlpha);
+        if (!card.hidden) visibleCount++;
+        fragment.appendChild(card);
+    });
+
+    container.replaceChildren(fragment);
+
+    if (visibleCount === 0 && !nextToken && !isLoading) {
+        container.innerHTML = `<div class="col-span-full text-center py-10 text-gray-400 font-bold">Buku tidak ditemukan.</div>`;
     }
 
-    if (filtered.length < 8 && nextToken && !isLoading) {
-    fetchNextBatch();
+    // Jangan mengambil batch berikutnya saat user sedang mencari; pencarian harus tetap responsif.
+    if (!search && visibleCount < 8 && nextToken && !isLoading) {
+        fetchNextBatch();
     }
 }
 
