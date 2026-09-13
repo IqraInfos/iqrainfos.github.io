@@ -16,6 +16,10 @@ function doGet(e) {
     return jsonResponse(getFilesFromDrive(token));
   }
 
+  if (action === 'allFiles') {
+    return jsonResponse(getAllFilesFromDrive());
+  }
+
   if (action === 'pdf') {
     return jsonResponse(getPdfData(e.parameter.fileId || ''));
   }
@@ -195,4 +199,39 @@ function testSheets() {
 
 function mintaIzinSheets() {
   SpreadsheetApp.openById(SPREADSHEET_ID);
+}
+
+function getAllFilesFromDrive() {
+  const folderId = "11-3uhsh4KkxiReh7cGUNCMUn0FkI0fHi";
+  const cache = CacheService.getScriptCache();
+  const cacheKey = 'files_all';
+  const cached = cache.get(cacheKey);
+  if (cached) return JSON.parse(cached);
+
+  try {
+    const folder = DriveApp.getFolderById(folderId);
+    const files = folder.getFiles();
+    const fileList = [];
+
+    while (files.hasNext()) {
+      const file = files.next();
+      let fileSize = 0;
+      try { fileSize = file.getSize(); } catch (err) { fileSize = 0; }
+
+      fileList.push({
+        id: file.getId(),
+        name: file.getName(),
+        url: file.getUrl(),
+        mimeType: file.getMimeType(),
+        size: formatBytes(fileSize),
+        thumbnail: "https://drive.google.com/thumbnail?id=" + file.getId() + "&sz=w400"
+      });
+    }
+
+    const result = { files: fileList, nextToken: null };
+    cache.put(cacheKey, JSON.stringify(result), 300);
+    return result;
+  } catch (e) {
+    return { files: [], nextToken: null, error: 'Daftar buku tidak dapat dimuat.' };
+  }
 }
