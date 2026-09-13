@@ -75,3 +75,46 @@ body.reader-open { overflow: hidden; }
 
 .reader-modal:fullscreen { padding: 0; }
 .reader-modal:fullscreen .reader-shell { width: 100vw; height: 100dvh; max-height: none; border-radius: 0; }
+
+@media (max-width: 900px) {
+    header {
+        flex-direction: column !important;
+        gap: 1.5rem !important;
+        padding: 1.5rem !important;
+        text-align: center;
+    }
+
+    header > img {
+        width: min(15rem, 55vw) !important;
+    }
+
+    header > div {
+        text-align: center !important;
+    }
+
+    header h1 {
+        font-size: clamp(2.25rem, 7vw, 3.5rem) !important;
+    }
+
+    header p {
+        max-width: 42rem !important;
+        margin-left: auto;
+        margin-right: auto;
+        font-size: 1rem !important;
+    }
+
+    .card-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+    }
+
+    .book-card {
+        border-radius: 1rem;
+    }
+}
+
+@media (max-width: 560px) {
+    .card-grid {
+        grid-template-columns: 1fr;
+    }
+}
