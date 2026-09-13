@@ -10,6 +10,8 @@ let pageFlip = null;
 let readerBook = null;
 let readerZoom = 1;
 const pdfCache = new Map();
+const activeRenderTasks = new Set();
+const activeLoadingTasks = new Set();
 let readerSession = 0;
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -127,6 +129,7 @@ async function openReader(fileId, fileName) {
     const book = allBooks.find(item => item.id === fileId);
     if (!book) return;
 
+    cancelReaderWork();
     const currentSession = ++readerSession;
     readerBook = book;
     resetReaderZoom();
@@ -161,7 +164,7 @@ async function openReader(fileId, fileName) {
         await renderPdfPage(pdf, 1, pageElements[0]);
         if (currentSession !== readerSession) return;
 
-        const flipContainer = document.getElementById('bookPageFlip');
+        const flipContainer = ensureFlipContainer();
         flipContainer.replaceChildren(...pageElements);
         pageFlip?.destroy();
         pageFlip = new St.PageFlip(flipContainer, {
@@ -196,21 +199,36 @@ async function openReader(fileId, fileName) {
     }
 }
 
+function ensureFlipContainer() {
+    let flipContainer = document.getElementById('bookPageFlip');
+    if (flipContainer) return flipContainer;
+
+    flipContainer = document.createElement('div');
+    flipContainer.id = 'bookPageFlip';
+    flipContainer.className = 'book-page-flip';
+    document.getElementById('bookViewport').appendChild(flipContainer);
+    return flipContainer;
+}
+
 async function loadPdf(fileId) {
     if (pdfCache.has(fileId)) return pdfCache.get(fileId);
 
     if (PDF_PROXY_URL) {
         const proxyUrl = `${PDF_PROXY_URL}?fileId=${encodeURIComponent(fileId)}`;
         try {
-            const proxyPdf = pdfjsLib.getDocument({
+            const loadingTask = pdfjsLib.getDocument({
                 url: proxyUrl,
                 rangeChunkSize: 1048576,
                 disableStream: false,
                 disableAutoFetch: false
-            }).promise;
-            pdfCache.set(fileId, proxyPdf);
-            return await proxyPdf;
+            });
+            activeLoadingTasks.add(loadingTask);
+            const proxyPdf = await loadingTask.promise;
+            activeLoadingTasks.delete(loadingTask);
+            pdfCache.set(fileId, Promise.resolve(proxyPdf));
+            return proxyPdf;
         } catch (error) {
+            activeLoadingTasks.delete(loadingTask);
             pdfCache.delete(fileId);
             console.warn('Proxy PDF gagal, mencoba fallback Apps Script:', error);
         }
@@ -240,7 +258,10 @@ async function loadPdfFromAppsScript(fileId) {
         }));
     }
 
-    const pdfPromise = pdfjsLib.getDocument({ data: binaryPdf }).promise;
+    const loadingTask = pdfjsLib.getDocument({ data: binaryPdf });
+    activeLoadingTasks.add(loadingTask);
+    const pdfPromise = loadingTask.promise;
+    pdfPromise.finally(() => activeLoadingTasks.delete(loadingTask));
     pdfCache.set(fileId, pdfPromise);
     pdfPromise.catch(() => pdfCache.delete(fileId));
     return pdfPromise;
@@ -278,8 +299,14 @@ function renderPdfPage(pdf, pageNumber, pageElement) {
         canvas.height = Math.ceil(renderViewport.height);
         canvas.style.width = `${Math.ceil(viewportSize.width)}px`;
         canvas.style.height = `${Math.ceil(viewportSize.height)}px`;
-        await page.render({ canvasContext: context, viewport: renderViewport }).promise;
-        pageElement.dataset.rendered = 'true';
+        const renderTask = page.render({ canvasContext: context, viewport: renderViewport });
+        activeRenderTasks.add(renderTask);
+        try {
+            await renderTask.promise;
+            pageElement.dataset.rendered = 'true';
+        } finally {
+            activeRenderTasks.delete(renderTask);
+        }
     })().finally(() => {
         pageElement.renderPromise = null;
     });
@@ -326,6 +353,7 @@ function resetReaderZoom() {
 
 function closeReader() {
     readerSession++;
+    cancelReaderWork();
     const modal = document.getElementById('readerModal');
     modal.classList.remove('is-open');
     modal.setAttribute('aria-hidden', 'true');
@@ -333,6 +361,17 @@ function closeReader() {
     pageFlip?.destroy();
     pageFlip = null;
     document.getElementById('bookPageFlip')?.replaceChildren();
+}
+
+function cancelReaderWork() {
+    activeRenderTasks.forEach(task => {
+        try { task.cancel(); } catch (error) { console.warn('Render task cleanup gagal:', error); }
+    });
+    activeRenderTasks.clear();
+    activeLoadingTasks.forEach(task => {
+        try { task.destroy(); } catch (error) { console.warn('PDF task cleanup gagal:', error); }
+    });
+    activeLoadingTasks.clear();
 }
 
 document.getElementById('readerModal').addEventListener('click', event => {
