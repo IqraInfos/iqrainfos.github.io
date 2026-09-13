@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Nurul Ilmi | Perpustakaan Digital</title>
+    <link rel="icon" type="image/webp" href="/assets/img/logo.webp">
+    <base target="_top">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body class="bg-green-50/30 text-gray-800">
+
+  <div class="max-w-7xl mx-auto p-4">
+    <header class="flex flex-col md:flex-row items-center gap-10 p-10 bg-white rounded-[2rem] border-b-4 border-green-200 mb-8 shadow-sm">
+      <img src="/assets/img/6414f1040c8d3bf8ffc006e51cc4f5e6.webp" class="w-64 md:w-80 h-auto drop-shadow-2xl animate-bounce-slow">
+      
+      <div class="text-center md:text-left">
+        <h1 class="text-5xl md:text-6xl font-black text-custom uppercase tracking-tight">Nurul Ilmi Digital</h1>
+        <p class="text-gray-600 mt-6 font-medium leading-relaxed text-justify md:max-w-2xl text-lg">
+          Halo Sahabat Literasi! Selamat datang di markas besar para juara. Di sini, ribuan buku pelajaran seru dan kumpulan cerita ajaib sudah menunggu untuk kamu buka. Khusus untuk Bapak/Ibu Guru dan Orang Tua, kami menyediakan akses mudah ke berbagai materi belajar untuk mendukung putra-putri kita menjadi yang terbaik. Ayo, temukan buku favoritmu hari ini dan jadilah bintang masa depan!
+        </p>
+
+        <!-- COUNTER PENGUNJUNG WEB -->
+        <div class="mt-6 inline-flex items-center gap-2 bg-green-100 text-custom px-5 py-2.5 rounded-2xl font-black text-sm border border-green-200 shadow-sm">
+          <i class="fa-solid fa-users text-base"></i>
+          <span>Total Pengunjung Web: <strong id="visitorCounter">...</strong></span>
+        </div>
+      </div>
+    </header>
+
+    <nav class="sticky-bar mb-10 rounded-3xl shadow-md border border-white">
+      <div class="max-w-3xl mx-auto">
+        <div class="flex gap-2 items-center mb-4">
+          <div class="relative flex-grow">
+            <input type="text" id="searchInput" oninput="debounceFilter()" 
+                   class="w-full pl-14 pr-6 py-4 rounded-2xl border-2 border-green-100 focus:border-custom focus:ring-4 focus:ring-green-50 outline-none transition-all text-lg" 
+                   placeholder="Cari buku apa hari ini?">
+            <i class="fa-solid fa-search absolute left-5 top-1/2 -translate-y-1/2 text-custom text-xl opacity-70"></i>
+          </div>
+          
+          <button onclick="toggleFilter()" class="btn-filter-toggle p-4 rounded-2xl shadow-sm border border-green-100" title="Tampilkan/Sembunyikan Filter">
+            <i id="filterIcon" class="fa-solid fa-filter text-xl"></i>
+          </button>
+        </div>
+        
+        <!-- SECTION FILTER DITUTUP SECARA DEFAULT (hidden-filter) -->
+        <div id="filterSection" class="hidden-filter flex flex-wrap justify-center gap-2 mb-2">
+          <button onclick="setFilter('ALL')" class="px-5 py-2 rounded-xl bg-custom text-white font-bold text-sm uppercase shadow-lg shadow-green-100">Semua</button>
+          <div class="flex flex-wrap justify-center gap-2" id="alphaContainer"></div>
+        </div>
+      </div>
+    </nav>
+
+    <div id="loader" class="flex flex-col items-center justify-center py-20">
+      <div class="w-16 h-16 border-8 border-green-100 border-t-custom rounded-full animate-spin"></div>
+      <p class="mt-6 text-custom font-bold text-xl text-center">Tunggu sebentar ya...</p>
+    </div>
+
+    <div id="fileContainer" class="card-grid"></div>
+    
+    <div id="bottomLoader" class="hidden flex justify-center py-12">
+      <div class="w-10 h-10 border-4 border-green-200 border-t-custom rounded-full animate-spin"></div>
+    </div>
+  </div>
+
+    <script src="assets/js/app.js" defer></script>
+</body>
+</html>
