@@ -16,6 +16,10 @@ function doGet(e) {
     return jsonResponse(getFilesFromDrive(token));
   }
 
+  if (action === 'pdf') {
+    return jsonResponse(getPdfData(e.parameter.fileId || ''));
+  }
+
   if (action === 'log') {
     logFileClick(e.parameter.fileId || '', e.parameter.fileName || '');
     return jsonResponse({ success: true });
@@ -82,6 +86,27 @@ function getFilesFromDrive(token) {
     };
   } catch (e) {
     return { files: [], nextToken: null };
+  }
+}
+
+function getPdfData(fileId) {
+  if (!fileId) return { error: 'ID file tidak ditemukan.' };
+
+  try {
+    const file = DriveApp.getFileById(fileId);
+    const blob = file.getBlob();
+
+    if (blob.getContentType() !== MimeType.PDF) {
+      return { error: 'File bukan PDF.' };
+    }
+
+    return {
+      name: file.getName(),
+      mimeType: blob.getContentType(),
+      data: Utilities.base64Encode(blob.getBytes())
+    };
+  } catch (e) {
+    return { error: 'PDF tidak dapat diakses dari Google Drive.' };
   }
 }
 

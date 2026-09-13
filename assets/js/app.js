@@ -142,8 +142,13 @@ async function openReader(fileId, fileName) {
     document.body.classList.add('reader-open');
 
     try {
-        const downloadUrl = `https://drive.google.com/uc?export=download&id=${encodeURIComponent(book.id)}`;
-        const pdf = await pdfjsLib.getDocument(downloadUrl).promise;
+        const pdfResponse = await requestApi('pdf', { fileId: book.id });
+        if (pdfResponse.error || !pdfResponse.data) {
+            throw new Error(pdfResponse.error || 'Data PDF kosong.');
+        }
+
+        const binaryPdf = Uint8Array.from(atob(pdfResponse.data), character => character.charCodeAt(0));
+        const pdf = await pdfjsLib.getDocument({ data: binaryPdf }).promise;
         const pageElements = [];
 
         for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
@@ -186,7 +191,7 @@ async function openReader(fileId, fileName) {
         controls.hidden = false;
     } catch (error) {
         console.error('Gagal membuka PDF:', error);
-        status.textContent = 'Buku tidak dapat ditampilkan di sini. Silakan buka melalui Google Drive.';
+        status.textContent = 'Buku tidak dapat ditampilkan. Pastikan file PDF dapat diakses publik, lalu coba lagi.';
         document.getElementById('driveFallback').classList.add('is-primary');
         controls.hidden = false;
     }
