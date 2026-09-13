@@ -294,7 +294,7 @@ function renderPdfPage(pdf, pageNumber, pageElement) {
         const baseViewport = page.getViewport({ scale: 1 });
         const maxHeight = window.innerWidth < 640 ? 600 : 720;
         const cssScale = Math.min(1.2, maxHeight / baseViewport.height);
-        const pixelRatio = Math.min(Math.max(window.devicePixelRatio || 1, 1.5), 2);
+        const pixelRatio = Math.min(Math.max(window.devicePixelRatio || 1, 2.5), 3);
         const viewportSize = page.getViewport({ scale: cssScale });
         const renderViewport = page.getViewport({ scale: cssScale * pixelRatio });
         const canvas = pageElement.querySelector('canvas');
