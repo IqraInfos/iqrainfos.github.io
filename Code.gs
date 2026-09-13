@@ -100,6 +100,57 @@ function getFilesFromDrive(token) {
   }
 }
 
+function getAllFilesFromDrive() {
+  const folderId = "11-3uhsh4KkxiReh7cGUNCMUn0FkI0fHi";
+  const cache = CacheService.getScriptCache();
+  const metaKey = 'files_all_meta';
+  const cachedMeta = cache.get(metaKey);
+
+  if (cachedMeta) {
+    const meta = JSON.parse(cachedMeta);
+    const cachedFiles = [];
+    for (let index = 0; index < meta.chunks; index++) {
+      const chunk = cache.get('files_all_' + index);
+      if (!chunk) break;
+      cachedFiles.push(...JSON.parse(chunk));
+    }
+    if (cachedFiles.length === meta.count) {
+      return { files: cachedFiles, nextToken: null };
+    }
+  }
+
+  try {
+    const files = DriveApp.getFolderById(folderId).getFiles();
+    const fileList = [];
+
+    while (files.hasNext()) {
+      const file = files.next();
+      let fileSize = 0;
+      try { fileSize = file.getSize(); } catch (err) { fileSize = 0; }
+
+      fileList.push({
+        id: file.getId(),
+        name: file.getName(),
+        url: file.getUrl(),
+        mimeType: file.getMimeType(),
+        size: formatBytes(fileSize),
+        thumbnail: "https://drive.google.com/thumbnail?id=" + file.getId() + "&sz=w400"
+      });
+    }
+
+    const chunkSize = 64;
+    const chunks = Math.ceil(fileList.length / chunkSize);
+    for (let index = 0; index < chunks; index++) {
+      cache.put('files_all_' + index, JSON.stringify(fileList.slice(index * chunkSize, (index + 1) * chunkSize)), 300);
+    }
+    cache.put(metaKey, JSON.stringify({ count: fileList.length, chunks }), 300);
+    return { files: fileList, nextToken: null };
+  } catch (error) {
+    console.error('Gagal memuat seluruh daftar buku: ' + error.message);
+    return { files: [], nextToken: null, error: 'Daftar buku tidak dapat dimuat.' };
+  }
+}
+
 function getPdfData(fileId) {
   if (!fileId) return { error: 'ID file tidak ditemukan.' };
 
