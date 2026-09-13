@@ -204,9 +204,20 @@ function mintaIzinSheets() {
 function getAllFilesFromDrive() {
   const folderId = "11-3uhsh4KkxiReh7cGUNCMUn0FkI0fHi";
   const cache = CacheService.getScriptCache();
-  const cacheKey = 'files_all';
-  const cached = cache.get(cacheKey);
-  if (cached) return JSON.parse(cached);
+  const metaKey = 'files_all_meta';
+  const cachedMeta = cache.get(metaKey);
+  if (cachedMeta) {
+    const meta = JSON.parse(cachedMeta);
+    const cachedFiles = [];
+    for (let index = 0; index < meta.chunks; index++) {
+      const chunk = cache.get('files_all_' + index);
+      if (!chunk) break;
+      cachedFiles.push(...JSON.parse(chunk));
+    }
+    if (cachedFiles.length === meta.count) {
+      return { files: cachedFiles, nextToken: null };
+    }
+  }
 
   try {
     const folder = DriveApp.getFolderById(folderId);
@@ -228,9 +239,13 @@ function getAllFilesFromDrive() {
       });
     }
 
-    const result = { files: fileList, nextToken: null };
-    cache.put(cacheKey, JSON.stringify(result), 300);
-    return result;
+    const chunkSize = 64;
+    const chunks = Math.ceil(fileList.length / chunkSize);
+    for (let index = 0; index < chunks; index++) {
+      cache.put('files_all_' + index, JSON.stringify(fileList.slice(index * chunkSize, (index + 1) * chunkSize)), 300);
+    }
+    cache.put(metaKey, JSON.stringify({ count: fileList.length, chunks }), 300);
+    return { files: fileList, nextToken: null };
   } catch (e) {
     return { files: [], nextToken: null, error: 'Daftar buku tidak dapat dimuat.' };
   }

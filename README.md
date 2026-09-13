@@ -84,6 +84,7 @@ Endpoint yang tersedia:
 
 ```text
 ?action=files
+?action=allFiles
 ?action=visitor
 ?action=counts
 ?action=log&fileId=...&fileName=...

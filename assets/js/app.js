@@ -35,7 +35,8 @@ function toggleFilter() {
 async function requestApi(action, params = {}) {
     const query = new URLSearchParams({ action, ...params });
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+    const timeoutMs = action === 'allFiles' ? 30000 : API_TIMEOUT_MS;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     let raceTimeoutId;
 
     try {
@@ -46,7 +47,7 @@ async function requestApi(action, params = {}) {
                     return response.json();
                 }),
             new Promise((resolve, reject) => {
-                raceTimeoutId = setTimeout(() => reject(new Error(`API timeout: ${action}`)), API_TIMEOUT_MS);
+                raceTimeoutId = setTimeout(() => reject(new Error(`API timeout: ${action}`)), timeoutMs);
             })
         ]);
         return response;
@@ -57,7 +58,7 @@ async function requestApi(action, params = {}) {
 }
 
 window.onload = () => {
-    fetchNextBatch();
+    fetchAllBooks();
 
     Promise.all([requestApi('visitor'), requestApi('counts')])
         .then(([visitor, counts]) => {
@@ -69,6 +70,27 @@ window.onload = () => {
             console.error('Gagal memuat statistik:', error);
         });
 };
+
+async function fetchAllBooks() {
+    isLoading = true;
+    try {
+        const response = await requestApi('allFiles');
+        if (response.error) throw new Error(response.error);
+        allBooks = (response.files || []).map(book => ({
+            ...book,
+            searchName: book.name.toLocaleLowerCase()
+        }));
+        allBooks.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+        nextToken = null;
+        render();
+    } catch (error) {
+        console.error('Gagal memuat seluruh daftar buku:', error);
+        document.getElementById('fileContainer').innerHTML = '<div class="col-span-full text-center py-10 text-gray-400 font-bold">Daftar buku tidak dapat dimuat. Silakan muat ulang halaman.</div>';
+    } finally {
+        isLoading = false;
+        document.getElementById('loader').classList.add('hidden');
+    }
+}
 
 async function fetchNextBatch() {
     if (isLoading || Date.now() - lastLoadAttempt < 2000) return;
